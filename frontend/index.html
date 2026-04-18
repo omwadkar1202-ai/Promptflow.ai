@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PromptFlow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles/main.css">
+
+</head>
+
+<body>
+  <div class="container">
+    <h1>⚡ PromptFlow</h1>
+
+    <textarea id="userInput" placeholder="Describe what you want..."></textarea>
+
+    <!-- ✅ NEW DROPDOWNS -->
+    <select id="type">
+      <option value="code">Code</option>
+      <option value="logic">Logic</option>
+      <option value="video">Video/Reel</option>
+      <option value="image">Image</option>
+      <option value="ui">UI/Website</option>
+    </select>
+
+    <select id="level">
+      <option value="basic">Basic</option>
+      <option value="improved" selected>Improved</option>
+    </select>
+
+    <button onclick="generatePrompt()">Generate Prompt</button>
+
+    <div class="loader" id="loader"></div>
+
+    <div class="section-title">Generated Prompt</div> 
+    <div class="output" id="promptOutput"></div>
+
+    <div class="section-title">LLM Response</div>
+    <div class="output" id="llmOutput"></div>
+
+    <button onclick="exportPDF()">Export as PDF</button>
+  </div>
+
+<script>
+async function generatePrompt() {
+  const input = document.getElementById('userInput').value.trim();
+  const type = document.getElementById('type').value;
+  const level = document.getElementById('level').value;
+  const loader = document.getElementById('loader');
+
+  const promptBox = document.getElementById('promptOutput');
+  const responseBox = document.getElementById('llmOutput');
+
+  if (!input) {
+    alert("Please enter something");
+    return;
+  }
+
+  loader.style.display = 'block';
+
+  try {
+    const res = await fetch('http://localhost:3000/api/prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task: input,
+        type: type,
+        level: level
+      })
+    });
+
+    const data = await res.json();
+
+    console.log("API RESPONSE:", data); // 🔍 DEBUG
+
+    // ✨ RESET ANIMATION
+    promptBox.style.opacity = 0;
+    responseBox.style.opacity = 0;
+
+    setTimeout(() => {
+      // ✅ FIXED HERE
+      promptBox.innerText = `
+--- Initial Prompt ---
+${data.initialPrompt || ''}
+
+--- Improved Prompt ---
+${data.improvedPrompt || ''}
+
+--- Improvements ---
+${data.improvement || ''}
+`;
+
+      responseBox.innerText =
+        data.response || 'No response';
+
+      promptBox.style.opacity = 1;
+      responseBox.style.opacity = 1;
+    }, 150);
+
+  } catch (err) {
+    console.error(err);
+    responseBox.innerText = 'Error connecting to server';
+  }
+
+  loader.style.display = 'none';
+}
+
+async function exportPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  const topic = document.getElementById('userInput').value || "Untitled";
+  const prompt = document.getElementById('promptOutput').innerText;
+  const response = document.getElementById('llmOutput').innerText;
+
+  if (!prompt || !response) {
+    alert("Generate content first!");
+    return;
+  }
+
+  let y = 20;
+  const pageHeight = doc.internal.pageSize.height;
+  const margin = 10;
+
+  function addTextBlock(title, text) {
+    doc.setFontSize(16);
+
+    if (y + 10 > pageHeight) {
+      doc.addPage();
+      y = 20;
+    }
+
+    doc.text(title, 10, y);
+    y += 8;
+
+    doc.setFontSize(11);
+    const splitText = doc.splitTextToSize(text, 180);
+
+    splitText.forEach(line => {
+      if (y + 6 > pageHeight - margin) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.text(line, 10, y);
+      y += 6;
+    });
+
+    y += 8;
+  }
+
+  addTextBlock("Topic:", topic);
+  addTextBlock("Prompt Details:", prompt);
+  addTextBlock("Output:", response);
+
+  doc.save("promptflow-output.pdf");
+}
+</script>
+
+</body>
+</html>
